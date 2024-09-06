@@ -1,0 +1,49 @@
+//Shapefile Dosyasının Entegrasyonu ve Haritaya Eklenmesi
+var table = ee.FeatureCollection("projects/aa-my-user/assets/tur_polbnda_adm1");
+Map.centerObject(table)
+Map.addLayer(table)
+
+//Sınırları ve Renkleri Belirleme
+var geometry = table.geometry();
+//NTL TARİHLERİNİ FİLTRELE
+var dataset = ee.ImageCollection("NOAA/VIIRS/DNB/ANNUAL_V21")
+                  .filter(ee.Filter.date('2013-01-01', '2014-01-01'));
+var nighttime = dataset.select('average');
+var nighttimeVis = {min: 0.0, max: 60.0};
+Map.addLayer(nighttime, nighttimeVis, 'Nighttime');
+print(dataset)
+
+var band = 'average';
+var ntlFiltered = dataset.filter(ee.Filter.date('2013-01-01', '2014-01-01'))
+.select(band);
+
+
+var ntlImage = ntlFiltered.first();
+print(ntlImage);
+
+var palette =['#253494', '#2c7fb8', '#41b6c4', '#a1dab4', '#ffffcc'];
+
+var ntlVisParams = {min: 0, max: 50, palette: palette}
+
+Map.addLayer(ntlImage.clip(table), ntlVisParams, '2013')
+
+var computeStats = function(feature) {
+  var stats = ntlImage.reduceRegion({
+    reducer: ee.Reducer.median(), // You can use other reducers (sum, median, etc.).
+    geometry: feature.geometry(),
+    scale: 30, // Adjust the scale according to your imagery.
+    maxPixels: 1e9 // Adjust the maxPixels parameter as needed.
+  });
+  
+  return feature.set(stats);
+};
+
+
+
+var result = table.map(computeStats);
+print(result);
+Export.table.toDrive({
+  collection: result,
+  description: '2013',
+  fileFormat: 'CSV'
+});
